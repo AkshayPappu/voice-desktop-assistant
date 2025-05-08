@@ -1,5 +1,6 @@
 import speech_recognition as sr
 import os
+import json
 from dotenv import load_dotenv
 from google.cloud import speech
 from google.oauth2 import service_account
@@ -39,20 +40,17 @@ def listen_for_speech():
     
     with sr.Microphone() as source:
         print("Listening... (Speak now)")
-        # Adjust for ambient noise with longer duration
-        print("Adjusting for ambient noise...")
+        # Adjust for ambient noise
         recognizer.adjust_for_ambient_noise(source, duration=2)
-        print(f"Energy threshold set to: {recognizer.energy_threshold}")
         
         try:
-            print("Waiting for speech...")
             # This will wait until speech is detected and then continue until there's a pause
             audio = recognizer.listen(source, 
                                     timeout=None,  # No timeout for initial speech detection
                                     phrase_time_limit=None)  # No limit on phrase length
             print("Speech detected! Processing...")
             
-            # Convert audio data to the format expected by Google Cloud Speech
+            # Get the audio data
             audio_data = audio.get_raw_data()
             
             # Create a Speech client
@@ -62,9 +60,12 @@ def listen_for_speech():
             audio = speech.RecognitionAudio(content=audio_data)
             config = speech.RecognitionConfig(
                 encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-                sample_rate_hertz=16000,
+                sample_rate_hertz=44100,  # Changed to match common microphone sample rate
                 language_code="en-US",
                 enable_automatic_punctuation=True,
+                model="default",
+                use_enhanced=True,
+                audio_channel_count=1,
             )
             
             # Perform the transcription
@@ -72,12 +73,16 @@ def listen_for_speech():
             
             # Get the transcription
             if response.results:
-                return response.results[0].alternatives[0].transcript
-            return None
-            
+                transcript = response.results[0].alternatives[0].transcript
+                print(f"Successfully transcribed: {transcript}")
+                return transcript
+            else:
+                print("No speech detected")
+                return None
+                    
         except sr.WaitTimeoutError:
-            print("No speech detected within timeout period")
+            print("No speech detected")
             return None
         except Exception as e:
-            print(f"Error during speech recognition: {e}")
+            print(f"Error: {str(e)}")
             return None 
