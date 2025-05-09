@@ -27,12 +27,18 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
   - Context-aware responses
   - Structured command output
 
+- **Voice Response System**
+  - Natural-sounding voice responses
+  - Configurable voice settings
+  - Clear and concise output
+  - Fallback to text display
+
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Python 3.8 or higher
-- Google Cloud account (for Speech-to-Text)
+- Google Cloud account (for Speech-to-Text and Text-to-Speech)
 - OpenAI API key
 - Google Calendar API credentials
 
@@ -98,6 +104,12 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
 - Timezone configuration
 - Default meeting duration
 - Calendar sharing preferences
+
+### Voice Response Settings
+- Multiple voice options
+- Adjustable speaking rate
+- Configurable pitch
+- Natural language processing
 
 ## 🤝 Contributing
 
