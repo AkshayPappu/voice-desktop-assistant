@@ -113,3 +113,4 @@ def execute_command(command_data):
     
     # Speak the response
     speak_text(formatted_response) 
+    return formatted_response

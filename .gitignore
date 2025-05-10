@@ -34,3 +34,23 @@ env/
 
 # Project specific
 /server/voice-desktop-assistant-9490fd5ea3b6.json
+
+# Ignore node_modules and build output in client
+client/node_modules/
+client/dist/
+client/build/
+client/.next/
+client/.cache/
+client/.env
+client/.env.*
+client/.DS_Store
+
+# Ignore log files
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+
+# Ignore OS generated files
+client/Thumbs.db
+client/.vscode/
+client/.idea/
