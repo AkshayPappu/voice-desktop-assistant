@@ -34,9 +34,9 @@ def process_with_llm(text, user_id="default_user"):
     Your job is to understand user commands and output them in a structured format.
     The output should be a JSON object with the following structure:
     {
-        "command_type": one of ["search_store", "calendar_check", "calendar_add", "open_app", "search_file"],
+        "command_type": one of ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question"],
         "parameters": {
-            // Parameters specific to each command type
+            // For specific command types:
             // search_store: {"query": "search term"}
             // calendar_check: {
             //     "date": "YYYY-MM-DD" for specific dates, or
@@ -51,6 +51,16 @@ def process_with_llm(text, user_id="default_user"):
             // }
             // open_app: {"app_name": "application name"}
             // search_file: {"filename": "file name to search"}
+            
+            // For general_question:
+            // {
+            //     "response": "The direct response to the user's question",
+            //     "requires_followup": boolean,
+            //     "followup_context": {
+            //         "question": "Follow-up question if needed",
+            //         "context": "Additional context for follow-up"
+            //     }
+            // }
         },
         "requires_followup": boolean,
         "followup_context": {
@@ -60,76 +70,50 @@ def process_with_llm(text, user_id="default_user"):
             // Optional additional context that might be needed for the follow-up
             "context": {
                 // Any additional information needed for processing the follow-up
-                // For example, available times, suggested options, etc.
             }
         }
     }
     
+    For general questions that don't fit into specific command types, use the "general_question" command type.
+    In this case, you should:
+    1. Analyze if the user's input is a general question or requires a specific tool
+    2. If it's a general question, use "general_question" command type and provide a direct response
+    3. If it requires a specific tool, use the appropriate command type
+    
     Examples:
-    1. When checking calendar events:
-       a. For specific date:
+    1. For a general question:
        {
-         "command_type": "calendar_check",
+         "command_type": "general_question",
          "parameters": {
-           "date": "2024-03-20"
-         },
-         "requires_followup": false
-       }
-       
-       b. For common timeframe:
-       {
-         "command_type": "calendar_check",
-         "parameters": {
-           "timeframe": "today"
-         },
-         "requires_followup": false
-       }
-       
-       c. For custom date range:
-       {
-         "command_type": "calendar_check",
-         "parameters": {
-           "start_date": "2024-03-20",
-           "end_date": "2024-04-20"
+           "response": "The capital of France is Paris. It's known for landmarks like the Eiffel Tower and the Louvre Museum."
          },
          "requires_followup": false
        }
     
-    2. When scheduling a meeting without a specific time:
+    2. For a question that needs follow-up:
        {
-         "command_type": "calendar_add",
+         "command_type": "general_question",
          "parameters": {
-           "title": "Team Meeting",
-           "date": "next Friday"
+           "response": "I can help you learn about that topic. Would you like to know about its history, current state, or future developments?",
+           "requires_followup": true,
+           "followup_context": {
+             "question": "Which aspect would you like to explore further?",
+             "context": {
+               "options": ["history", "current state", "future developments"]
+             }
+           }
          },
          "requires_followup": true,
          "followup_context": {
-           "question": "I found these available times for next Friday: 9:00 AM, 10:30 AM, and 2:00 PM. Which time works best for you?",
-           "parameter_to_update": "time",
+           "question": "Which aspect would you like to explore further?",
+           "parameter_to_update": "aspect",
            "context": {
-             "available_times": ["9:00 AM", "10:30 AM", "2:00 PM"]
+             "options": ["history", "current state", "future developments"]
            }
          }
        }
     
-    3. When searching for a file without a specific name:
-       {
-         "command_type": "search_file",
-         "parameters": {},
-         "requires_followup": true,
-         "followup_context": {
-           "question": "What type of file are you looking for? (e.g., document, spreadsheet, image)",
-           "parameter_to_update": "file_type",
-           "context": {
-             "suggested_types": ["document", "spreadsheet", "image", "presentation"]
-           }
-         }
-       }
-    
-    For calendar_check, you should:
-    1. Use "date" for specific dates (e.g., "March 20th", "next Friday")
-    2. Use "timeframe" for common timeframes (today, tomorrow, this week)
-    3. Use "start_date" and "end_date" for custom ranges (e.g., "next 30 days", "next month")
+    // ... existing examples for other command types ...
     
     Only output valid JSON, no other text."""
     
@@ -162,9 +146,13 @@ def process_with_llm(text, user_id="default_user"):
         command_data = json.loads(response.choices[0].message.content)
         
         # Validate the command structure
-        valid_commands = ["search_store", "calendar_check", "calendar_add", "open_app", "search_file"]
+        valid_commands = ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question"]
         if command_data.get("command_type") not in valid_commands:
             raise ValueError(f"Invalid command type: {command_data.get('command_type')}")
+        
+        # For general questions, extract the response from parameters
+        if command_data["command_type"] == "general_question":
+            command_data["response"] = command_data["parameters"].get("response", "")
         
         # Store the conversation turn
         conversation_manager.store_conversation(

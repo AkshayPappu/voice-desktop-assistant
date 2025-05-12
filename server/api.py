@@ -5,12 +5,13 @@ import uuid
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import speech_recognition as sr
 import json
 import asyncio
 from google.cloud import speech
 import io
+from datetime import datetime
 
 # Add the server directory to Python path
 server_dir = Path(__file__).parent
@@ -20,6 +21,7 @@ sys.path.append(str(server_dir))
 from llm.llm_handler import process_with_llm
 from tools.command_executor import execute_command
 from tools.followup_handler import handle_followup
+from context.conversation_manager import ConversationManager
 
 app = FastAPI()
 
@@ -32,12 +34,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize speech recognition
+# Initialize services
 recognizer = sr.Recognizer()
 client = speech.SpeechClient()
+conversation_manager = ConversationManager()
 
 # Store active WebSocket connections
 active_connections: Dict[str, WebSocket] = {}
+
+# Models
+class ChatSession(BaseModel):
+    user_id: str
+    title: Optional[str] = None
+
+class Message(BaseModel):
+    chat_id: str
+    user_id: str
+    content: str
+    type: str  # 'user' or 'assistant'
 
 class CommandRequest(BaseModel):
     text: str
@@ -204,4 +218,120 @@ async def handle_command_followup(request: CommandRequest):
     if not command_data.get("requires_followup"):
         del active_sessions[request.user_id]
     
-    return command_data 
+    return command_data
+
+@app.post("/api/create-chat")
+async def create_chat(chat: ChatSession):
+    """Create a new chat session"""
+    try:
+        chat_id = conversation_manager.create_chat_session(
+            user_id=chat.user_id,
+            title=chat.title
+        )
+        return {"chat_id": chat_id, "title": chat.title or f"Chat {datetime.now().isoformat()}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/list-chats")
+async def list_chats(user_id: str):
+    """List all chat sessions for a user"""
+    try:
+        chats = conversation_manager.list_chat_sessions(user_id)
+        return chats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-chat/{chat_id}")
+async def get_chat(chat_id: str):
+    """Get chat session details"""
+    try:
+        # Query for the chat session
+        results = conversation_manager.index.query(
+            vector=conversation_manager._get_embedding("chat session"),
+            filter={"chat_id": chat_id, "type": "chat_session"},
+            top_k=1,
+            include_metadata=True
+        )
+        
+        if not results.matches:
+            raise HTTPException(status_code=404, detail="Chat not found")
+            
+        return results.matches[0].metadata
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-chat-messages/{chat_id}")
+async def get_chat_messages(chat_id: str):
+    """Get all messages in a chat session"""
+    try:
+        messages = conversation_manager.get_chat_messages(chat_id)
+        return messages
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/store-message")
+async def store_message(message: Message):
+    """Store a new message in a chat session"""
+    try:
+        # Validate chat session exists
+        chat_results = conversation_manager.index.query(
+            vector=conversation_manager._get_embedding("chat session"),
+            filter={"chat_id": message.chat_id, "type": "chat_session"},
+            top_k=1,
+            include_metadata=True
+        )
+        
+        if not chat_results.matches:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+
+        # Store the message with proper content handling
+        if message.type == 'user':
+            # For user messages, store as query
+            conversation_manager.store_message(
+                chat_id=message.chat_id,
+                user_id=message.user_id,
+                query=message.content,
+                response="",  # Use empty string instead of None
+                requires_followup=False
+            )
+        else:
+            # For assistant messages, store as response
+            conversation_manager.store_message(
+                chat_id=message.chat_id,
+                user_id=message.user_id,
+                query="",  # Use empty string instead of None
+                response=message.content,
+                requires_followup=False
+            )
+        
+        return {"status": "success", "message": "Message stored successfully"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error storing message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to store message: {str(e)}")
+
+@app.delete("/api/delete-chat/{chat_id}")
+async def delete_chat(chat_id: str):
+    """Delete a chat session and all its messages"""
+    try:
+        # First verify the chat exists
+        chat_results = conversation_manager.index.query(
+            vector=conversation_manager._get_embedding("chat session"),
+            filter={"chat_id": chat_id, "type": "chat_session"},
+            top_k=1,
+            include_metadata=True
+        )
+        
+        if not chat_results.matches:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+            
+        # Delete all vectors associated with this chat session
+        conversation_manager.delete_chat_session(chat_id)
+        
+        return {"status": "success", "message": "Chat deleted successfully"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Error deleting chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}") 

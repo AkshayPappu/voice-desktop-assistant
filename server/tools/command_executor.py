@@ -12,6 +12,18 @@ def execute_command(command_data):
         command_data (dict): Dictionary containing the command and its parameters
     """
     command_type = command_data.get("command_type")
+    
+    # Handle general questions separately
+    if command_type == "general_question":
+        # For general questions, return the response directly from parameters
+        response = command_data.get("parameters", {}).get("response", "")
+        if response:
+            # Speak the response
+            speak_text(response)
+            return response
+        return "I apologize, but I couldn't generate a proper response to your question."
+    
+    # Handle other command types
     parameters = command_data.get("parameters", {})
     raw_output = {}
     
