@@ -34,7 +34,7 @@ def process_with_llm(text, user_id="default_user"):
     Your job is to understand user commands and output them in a structured format.
     The output should be a JSON object with the following structure:
     {
-        "command_type": one of ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question"],
+        "command_type": one of ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question", "email_check", "email_send", "email_draft"],
         "parameters": {
             // For specific command types:
             // search_store: {"query": "search term"}
@@ -51,6 +51,9 @@ def process_with_llm(text, user_id="default_user"):
             // }
             // open_app: {"app_name": "application name"}
             // search_file: {"filename": "file name to search"}
+            // email_check: {"days_back": number, "important_only": boolean, "max_results": number}
+            // email_send: {"to": "email", "subject": "subject", "body": "content"}
+            // email_draft: {"to": "email", "subject": "subject", "body": "content"}
             
             // For general_question:
             // {
@@ -146,7 +149,7 @@ def process_with_llm(text, user_id="default_user"):
         command_data = json.loads(response.choices[0].message.content)
         
         # Validate the command structure
-        valid_commands = ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question"]
+        valid_commands = ["search_store", "calendar_check", "calendar_add", "open_app", "search_file", "general_question", "email_check", "email_send", "email_draft"]
         if command_data.get("command_type") not in valid_commands:
             raise ValueError(f"Invalid command type: {command_data.get('command_type')}")
         

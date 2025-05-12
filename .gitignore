@@ -34,6 +34,8 @@ env/
 
 # Project specific
 /server/voice-desktop-assistant-9490fd5ea3b6.json
+/server/credentials.json
+/server/token.pickle
 
 # Ignore node_modules and build output in client
 client/node_modules/
