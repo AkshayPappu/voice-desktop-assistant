@@ -1,6 +1,6 @@
 # 🎙️ Voice Desktop Assistant
 
-A powerful voice-controlled desktop assistant that helps you manage your calendar, search files, and control your computer using natural language commands. Built with modern web technologies and powered by OpenAI's GPT-4.
+Hey there! 👋 This is my personal voice assistant that helps me manage my emails, calendar, and files using natural language. It's like having a friendly AI buddy that understands what I say and helps me stay organized. Built with modern tech and powered by GPT-4, it's pretty smart!
 
 ## 🛠️ Tech Stack
 
@@ -16,9 +16,18 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
 - **OpenAI GPT-4** - Natural language understanding
 - **Google Cloud Speech-to-Text** - Accurate speech recognition
 - **Google Calendar API** - Calendar management
+- **Gmail API** - Email management
 - **WebSocket** - Real-time audio streaming
 
 ## ✨ Features
+
+- **📧 Smart Email Management**
+  - Check recent and important emails
+  - Send emails with natural language
+  - Create email drafts for review
+  - Search through your inbox
+  - Get concise email summaries
+  - OAuth2 secure authentication
 
 - **🎯 Voice Command Recognition**
   - Real-time audio streaming via WebSocket
@@ -59,9 +68,10 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
 
 - Python 3.12 or higher
 - Node.js 18 or higher
-- Google Cloud account (for Speech-to-Text)
+- Google Cloud account (for Speech-to-Text and Gmail)
 - OpenAI API key
 - Google Calendar API credentials
+- Gmail API credentials (OAuth2)
 
 ### Installation
 
@@ -95,6 +105,13 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
    TARGET_CALENDAR_EMAIL=your_calendar_email
    ```
 
+5. Set up Gmail API:
+   - Go to Google Cloud Console
+   - Enable Gmail API
+   - Create OAuth2 credentials
+   - Download credentials and save as `credentials.json` in the server directory
+   - Add your email as a test user in the OAuth consent screen
+
 ### Running the Application
 
 1. Start the backend server:
@@ -116,6 +133,13 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
    - View real-time transcription and responses
 
 ## 🎮 Usage Examples
+
+### Email Commands
+- "Check my recent important emails"
+- "Send an email to john@example.com about the meeting"
+- "Draft an email to sarah@example.com about the project update"
+- "Search my emails for messages about the job application"
+- "What important emails did I get in the last 3 days?"
 
 ### Calendar Commands
 - "What's on my calendar today?"
@@ -151,6 +175,13 @@ A powerful voice-controlled desktop assistant that helps you manage your calenda
 - Context-aware formatting
 - Error handling with user-friendly messages
 
+### Email Settings
+- OAuth2 authentication
+- Secure token storage
+- Automatic token refresh
+- Test mode for personal use
+- Concise email summaries
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
@@ -169,7 +200,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-For support, please:
+Need help? I'm here! You can:
 1. Check the [Issues](https://github.com/yourusername/voice-desktop-assistant/issues) page
-2. Open a new issue if your problem isn't already listed
-3. Contact the maintainers for urgent matters
+2. Open a new issue if you can't find what you're looking for
+3. Drop me a message for urgent stuff
+
+Remember, this is a personal project, so I'm always happy to help make it better! 😊
