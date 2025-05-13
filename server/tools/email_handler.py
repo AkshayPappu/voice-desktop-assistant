@@ -198,6 +198,15 @@ class EmailHandler:
             dict: Draft email data
         """
         try:
+            print(f"\nAttempting to create email draft:")
+            print(f"To: {to}")
+            print(f"Subject: {subject}")
+            print(f"Body length: {len(body)} characters")
+            
+            if not self.service:
+                print("Error: Gmail service not initialized")
+                return None
+                
             message = MIMEMultipart()
             message['to'] = to
             message['subject'] = subject
@@ -206,23 +215,35 @@ class EmailHandler:
             message.attach(msg)
             
             raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            print("Message encoded successfully")
             
-            draft = self.service.users().drafts().create(
-                userId='me',
-                body={'message': {'raw': raw}}
-            ).execute()
-            
-            return {
-                'id': draft['id'],
-                'message': {
-                    'to': to,
-                    'subject': subject,
-                    'snippet': body[:100] + '...' if len(body) > 100 else body
+            try:
+                draft = self.service.users().drafts().create(
+                    userId='me',
+                    body={'message': {'raw': raw}}
+                ).execute()
+                print(f"Draft created successfully with ID: {draft.get('id')}")
+                
+                return {
+                    'id': draft['id'],
+                    'message': {
+                        'to': to,
+                        'subject': subject,
+                        'snippet': body[:100] + '...' if len(body) > 100 else body
+                    }
                 }
-            }
+            except Exception as api_error:
+                print(f"Gmail API error: {str(api_error)}")
+                if hasattr(api_error, 'resp'):
+                    print(f"API response status: {api_error.resp.status}")
+                    print(f"API response content: {api_error.resp.content}")
+                raise
             
         except Exception as e:
             print(f"Error drafting email: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            if hasattr(e, '__cause__'):
+                print(f"Caused by: {str(e.__cause__)}")
             return None
 
     def send_email(self, to, subject, body):

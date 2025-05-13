@@ -61,6 +61,7 @@ class CalendarHandler:
             datetime: Parsed datetime object in local timezone
         """
         now = datetime.now(self.timezone)
+        current_year = now.year  # Get current year (2025)
         
         # Handle common natural language patterns
         if date_str.lower() == "tomorrow":
@@ -72,7 +73,13 @@ class CalendarHandler:
         elif date_str.lower().startswith("next "):
             # Handle "next [day of week]"
             try:
+                # First try parsing with dateutil
                 parsed_date = parser.parse(date_str, fuzzy=True)
+                # Always set the year to current year
+                parsed_date = parsed_date.replace(year=current_year)
+                # If the parsed date is in the past, add a week
+                if parsed_date < now:
+                    parsed_date = parsed_date + timedelta(days=7)
                 return self.timezone.localize(parsed_date)
             except:
                 # If parser fails, try to handle it manually
@@ -92,6 +99,11 @@ class CalendarHandler:
         # Try parsing with dateutil
         try:
             parsed_date = parser.parse(date_str, fuzzy=True)
+            # Always set the year to current year
+            parsed_date = parsed_date.replace(year=current_year)
+            # If the parsed date is in the past, add a week
+            if parsed_date < now:
+                parsed_date = parsed_date + timedelta(days=7)
             return self.timezone.localize(parsed_date)
         except:
             raise ValueError(f"Could not parse date: {date_str}")

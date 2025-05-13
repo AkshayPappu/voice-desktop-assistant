@@ -116,37 +116,98 @@ def execute_command(command_data):
             start_date = parameters.get('start_date')
             end_date = parameters.get('end_date')
             
+            # Get the timezone from the calendar handler
+            timezone = calendar.timezone
+            
+            print("\nCalendar Check Debug Info:")
+            print(f"Requested timeframe: {timeframe}")
+            print(f"Requested date: {date}")
+            print(f"Requested start_date: {start_date}")
+            print(f"Requested end_date: {end_date}")
+            
             if timeframe:
-                now = datetime.now()
+                now = datetime.now(timezone)  # Use timezone-aware datetime
+                current_year = now.year  # Get current year
+                print(f"Current time: {now}")
+                print(f"Current year: {current_year}")
+                
                 if timeframe.lower() in ["today", "now"]:
                     time_min = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     time_max = time_min + timedelta(days=1)
+                    print(f"Timeframe 'today': {time_min} to {time_max}")
                 elif timeframe.lower() in ["tomorrow", "next day"]:
                     time_min = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
                     time_max = time_min + timedelta(days=1)
-                elif timeframe.lower() in ["this week", "next week", "week"]:
+                    print(f"Timeframe 'tomorrow': {time_min} to {time_max}")
+                elif timeframe.lower() in ["this week", "this_week", "week"]:
+                    # For this week, start from now and look ahead 7 days
                     time_min = now.replace(hour=0, minute=0, second=0, microsecond=0)
                     time_max = time_min + timedelta(days=7)
+                    print(f"Timeframe 'this week':")
+                    print(f"  Start (today): {time_min}")
+                    print(f"  End (7 days later): {time_max}")
+                elif timeframe.lower() in ["next week"]:
+                    # Get the start of next week (Monday)
+                    time_min = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                    days_since_monday = now.weekday()  # 0 for Monday, 6 for Sunday
+                    time_min = time_min + timedelta(days=(7 - days_since_monday))
+                    # Ensure we're using current year
+                    time_min = time_min.replace(year=current_year)
+                    # Set end to end of next Sunday
+                    time_max = time_min + timedelta(days=7)
+                    print(f"Timeframe 'next week':")
+                    print(f"  Start (Monday): {time_min}")
+                    print(f"  End (Sunday): {time_max}")
                 elif timeframe.lower() in ["next", "upcoming", "coming"]:
                     time_min = now
                     time_max = now + timedelta(days=1)
+                    print(f"Timeframe 'next/upcoming': {time_min} to {time_max}")
                 else:
+                    # Default to next 24 hours
                     time_min = now
                     time_max = now + timedelta(days=1)
+                    print(f"Default timeframe: {time_min} to {time_max}")
             elif date:
+                # Parse date and make it timezone-aware
                 time_min = datetime.strptime(date, "%Y-%m-%d")
+                time_min = timezone.localize(time_min)
+                # Ensure we're using current year if not explicitly specified
+                if time_min.year != current_year:
+                    time_min = time_min.replace(year=current_year)
                 time_max = time_min + timedelta(days=1)
+                print(f"Specific date: {date}")
+                print(f"Parsed time range: {time_min} to {time_max}")
             elif start_date and end_date:
+                # Parse dates and make them timezone-aware
                 time_min = datetime.strptime(start_date, "%Y-%m-%d")
+                time_min = timezone.localize(time_min)
+                # Ensure we're using current year if not explicitly specified
+                if time_min.year != current_year:
+                    time_min = time_min.replace(year=current_year)
                 time_max = datetime.strptime(end_date, "%Y-%m-%d")
+                time_max = timezone.localize(time_max)
+                # Ensure we're using current year if not explicitly specified
+                if time_max.year != current_year:
+                    time_max = time_max.replace(year=current_year)
+                print(f"Date range: {start_date} to {end_date}")
+                print(f"Parsed time range: {time_min} to {time_max}")
             else:
-                time_min = datetime.now()
+                time_min = datetime.now(timezone)
                 time_max = time_min + timedelta(days=1)
+                print(f"No timeframe specified, using default: {time_min} to {time_max}")
+            
+            print(f"\nFinal time range for calendar query:")
+            print(f"Start: {time_min.isoformat()}")
+            print(f"End: {time_max.isoformat()}")
             
             events = calendar.get_events(
-                time_min=time_min.isoformat() + 'Z',
-                time_max=time_max.isoformat() + 'Z'
+                time_min=time_min.isoformat(),
+                time_max=time_max.isoformat()
             )
+            
+            print(f"\nFound {len(events)} events in the specified time range")
+            for event in events:
+                print(f"Event: {event['summary']} at {event['start']}")
             
             raw_output = {
                 "timeframe": timeframe or date or f"{start_date} to {end_date}",

@@ -34,6 +34,9 @@ class ConversationManager:
         
         # Initialize OpenAI client for embeddings and chat
         self.openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        
+        # Store current context
+        self._current_context = None
 
     def _generate_chat_title(self, message):
         """Generate a meaningful title for a chat based on the first message"""
@@ -348,4 +351,35 @@ class ConversationManager:
             user_id (str): User identifier
         """
         # Delete all vectors for this user
-        self.index.delete(filter={"user_id": user_id}) 
+        self.index.delete(filter={"user_id": user_id})
+
+    def set_current_context(self, context):
+        """
+        Store the current conversation context
+        
+        Args:
+            context (dict): The current command context to store
+        """
+        print(f"\nSetting current context: {context}")
+        self._current_context = context
+        # Verify context was stored
+        print(f"Current context after setting: {self._current_context}")
+
+    def clear_current_context(self):
+        """
+        Clear the current conversation context
+        """
+        print("\nClearing current context")
+        print(f"Context before clearing: {self._current_context}")
+        self._current_context = None
+        print("Context cleared")
+
+    def get_current_context(self):
+        """
+        Get the current conversation context
+        
+        Returns:
+            dict: The current command context, or None if no context exists
+        """
+        print(f"\nGetting current context: {self._current_context}")
+        return self._current_context 

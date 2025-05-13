@@ -1,6 +1,7 @@
 let mediaRecorder;
 let audioChunks = [];
-let ws;
+let audioWs;
+let textWs;
 let isRecording = false;
 let audioContext;
 let audioStream;
@@ -11,6 +12,9 @@ let currentChatId = null;
 let userId = localStorage.getItem('userId') || crypto.randomUUID();
 localStorage.setItem('userId', userId);
 
+// Add at the top with other global variables
+let currentCommandContext = null;
+
 // UI Elements
 const orb = document.getElementById('orb');
 const statusText = document.getElementById('status');
@@ -18,6 +22,13 @@ const chatMessages = document.getElementById('chat-messages');
 const chatList = document.getElementById('chat-list');
 const newChatButton = document.getElementById('new-chat-button');
 const currentChatTitle = document.getElementById('current-chat-title');
+const emailPreviewSubject = document.getElementById('email-preview-subject');
+const emailPreviewBody = document.getElementById('email-preview-body');
+const emailInput = document.getElementById('email-input');
+const emailDialog = document.getElementById('email-dialog');
+const dialogOverlay = document.getElementById('dialog-overlay');
+const emailCancelButton = document.getElementById('email-cancel-button');
+const emailSendButton = document.getElementById('email-send-button');
 
 function updateOrbState(state) {
     // Remove all state classes
@@ -371,7 +382,7 @@ newChatButton.addEventListener('click', createNewChat);
 
 // WebSocket message handling
 function handleWebSocketMessage(response) {
-    if (!currentChatId) return;
+    console.log('Handling WebSocket message:', response);
     
     switch(response.type) {
         case 'transcription':
@@ -380,25 +391,12 @@ function handleWebSocketMessage(response) {
                 updateStatus(`Error: ${response.error}`);
                 updateOrbState(null);
             } else {
-                // Show transcription in the UI
-                const transcriptElement = document.getElementById('transcript');
-                if (transcriptElement) {
-                    transcriptElement.textContent = response.transcription;
-                    transcriptElement.parentElement.classList.add('visible');
-                }
-                
-                // Add user message to chat
-                const message = {
+                showTranscription(response.transcription);
+                addMessageToChat({
                     type: 'user',
                     query: response.transcription,
                     timestamp: new Date().toISOString()
-                };
-                addMessageToChat(message);
-                
-                // Store message in backend
-                storeMessage(currentChatId, response.transcription, 'user');
-                
-                // Update status
+                });
                 updateStatus('Processing command...');
                 updateOrbState('processing');
             }
@@ -409,31 +407,37 @@ function handleWebSocketMessage(response) {
                 showError(response.error);
                 updateStatus(`Error: ${response.error}`);
                 updateOrbState(null);
+                // If we get an error, hide the email dialog
+                if (response.error.includes('email') || response.error.includes('context')) {
+                    hideEmailDialog();
+                }
             } else {
-                // Get response text based on command type
-                let responseText;
-                if (response.command_data?.command_type === 'general_question') {
-                    // For general questions, use the response from parameters
-                    responseText = response.command_data.parameters?.response || 
-                                 response.command_data.response || 
-                                 'No response available';
-                } else {
-                    // For other commands, use the standard response
-                    responseText = response.response || 
-                                 (response.command_data?.response) || 
-                                 'No response available';
+                // Store the command context if it requires follow-up
+                if (response.command_data?.requires_followup) {
+                    console.log('Storing command context for follow-up:', response.command_data);
+                    currentCommandContext = response.command_data;
+                    
+                    // Only show email dialog for initial email command
+                    // Don't show if we already have a 'to' address (meaning email was just sent)
+                    if (response.command_data?.followup_context?.context?.type === 'email_input' && 
+                        !response.command_data?.parameters?.to && 
+                        !emailDialog.classList.contains('visible')) {  // Extra check to prevent showing if already visible
+                        console.log('Showing email dialog for initial follow-up:', response.command_data);
+                        showEmailDialog(response.command_data.followup_context.context.current_draft);
+                    }
+                }
+                
+                // Handle the response
+                if (response.response) {
+                    showTranscription(response.response);
                 }
                 
                 // Add assistant message to chat
-                const message = {
+                addMessageToChat({
                     type: 'assistant',
-                    response: responseText,
+                    response: response.response || response.command_data?.response || 'No response available',
                     timestamp: new Date().toISOString()
-                };
-                addMessageToChat(message);
-                
-                // Store message in backend
-                storeMessage(currentChatId, responseText, 'assistant');
+                });
                 
                 // Update status and orb
                 updateStatus('Ready to record');
@@ -445,9 +449,15 @@ function handleWebSocketMessage(response) {
             break;
             
         case 'error':
+            console.error('Received error from server:', response.error);
             showError(response.error);
             updateStatus(`Error: ${response.error}`);
             updateOrbState(null);
+            
+            // If we get an error about invalid context or email, hide the dialog
+            if (response.error.includes('context') || response.error.includes('email')) {
+                hideEmailDialog();
+            }
             break;
     }
 }
@@ -488,55 +498,116 @@ async function storeMessage(chatId, content, type) {
     }
 }
 
-// Update WebSocket connection
-async function connectWebSocket() {
-    ws = new WebSocket('ws://localhost:8000/ws/audio');
+// Function to show email dialog
+function showEmailDialog(draft) {
+    console.log('Showing email dialog with draft:', draft);
+    if (!draft) {
+        console.error('No draft provided for email dialog');
+        return;
+    }
     
-    ws.onopen = () => {
-        console.log('WebSocket connection established');
-        updateStatus('Ready to record');
+    // Update preview with draft content
+    emailPreviewSubject.textContent = draft.subject || 'No Subject';
+    emailPreviewBody.textContent = draft.body || '';
+    
+    // Clear any previous input
+    emailInput.value = '';
+    
+    // Show the dialog
+    emailDialog.classList.add('visible');
+    dialogOverlay.classList.add('visible');
+    
+    // Focus the email input
+    emailInput.focus();
+    
+    // Ensure text WebSocket is connected
+    if (!textWs || textWs.readyState !== WebSocket.OPEN) {
+        console.log('Connecting text WebSocket for email dialog');
+        connectTextWebSocket();
+    }
+}
+
+// Connect only the text WebSocket
+async function connectTextWebSocket() {
+    textWs = new WebSocket('ws://localhost:8000/ws/text');
+    
+    textWs.onopen = () => {
+        console.log('Text WebSocket connection established');
     };
     
-    ws.onmessage = (event) => {
-        console.log('Received WebSocket message:', event.data);
+    textWs.onmessage = (event) => {
+        console.log('Received text WebSocket message:', event.data);
         try {
             const response = JSON.parse(event.data);
             handleWebSocketMessage(response);
         } catch (error) {
-            console.error('Error processing WebSocket message:', error);
+            console.error('Error processing text WebSocket message:', error);
         }
     };
     
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+    textWs.onerror = (error) => {
+        console.error('Text WebSocket error:', error);
+        showError('Error connecting to server');
+    };
+    
+    textWs.onclose = () => {
+        console.log('Text WebSocket connection closed');
+    };
+}
+
+// Update WebSocket connection to only handle audio
+async function connectWebSockets() {
+    // Connect to audio WebSocket
+    audioWs = new WebSocket('ws://localhost:8000/ws/audio');
+    
+    audioWs.onopen = () => {
+        console.log('Audio WebSocket connection established');
+        updateStatus('Ready to record');
+    };
+    
+    audioWs.onmessage = (event) => {
+        console.log('Received audio WebSocket message:', event.data);
+        try {
+            const response = JSON.parse(event.data);
+            handleWebSocketMessage(response);
+        } catch (error) {
+            console.error('Error processing audio WebSocket message:', error);
+        }
+    };
+    
+    audioWs.onerror = (error) => {
+        console.error('Audio WebSocket error:', error);
         updateStatus('Error connecting to server');
         updateOrbState(null);
     };
     
-    ws.onclose = () => {
-        console.log('WebSocket connection closed');
+    audioWs.onclose = () => {
+        console.log('Audio WebSocket connection closed');
         updateStatus('Disconnected from server');
         updateOrbState(null);
     };
 }
 
-// Initialize when page loads
+// Update initialization
 window.addEventListener('load', () => {
-    connectWebSocket();
+    connectWebSockets();  // Only connect audio WebSocket initially
     initializeChat();
 });
 
-// Clean up when page unloads
+// Update cleanup
 window.addEventListener('unload', () => {
     stopRecording();
-    if (ws) {
-        ws.close();
+    if (audioWs) {
+        audioWs.close();
+    }
+    if (textWs) {
+        textWs.close();
     }
 });
 
 async function startRecording() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        connectWebSocket();
+    if (!audioWs || audioWs.readyState !== WebSocket.OPEN) {
+        connectWebSockets();
     }
 
     try {
@@ -626,7 +697,7 @@ async function stopRecording() {
         }
 
         // Combine all audio chunks into a single buffer
-        if (audioBuffer.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+        if (audioBuffer.length > 0 && audioWs && audioWs.readyState === WebSocket.OPEN) {
             // Calculate total length
             const totalLength = audioBuffer.reduce((acc, buffer) => acc + buffer.byteLength, 0);
             const combinedBuffer = new Int16Array(totalLength / 2);
@@ -641,7 +712,7 @@ async function stopRecording() {
             
             // Send the complete audio data
             console.log(`Sending complete audio data: ${combinedBuffer.byteLength} bytes`);
-            ws.send(combinedBuffer.buffer);
+            audioWs.send(combinedBuffer.buffer);
         }
         
         // Clear the buffer
@@ -727,3 +798,61 @@ function handleCommandResponse(commandData) {
             console.error("Unknown command type:", commandData.command_type);
     }
 }
+
+// Function to hide email dialog
+function hideEmailDialog() {
+    console.log('Hiding email dialog');
+    emailDialog.classList.remove('visible');
+    dialogOverlay.classList.remove('visible');
+    currentCommandContext = null;  // Clear the command context
+}
+
+// Update email dialog event listeners
+emailCancelButton.addEventListener('click', () => {
+    console.log('Email cancelled by user');
+    if (textWs && textWs.readyState === WebSocket.OPEN) {
+        const message = {
+            type: 'followup_response',
+            response: '',
+            cancelled: true,
+            context: currentCommandContext
+        };
+        console.log('Sending cancel message:', message);
+        textWs.send(JSON.stringify(message));
+    } else {
+        console.error('Text WebSocket not connected for cancel');
+        showError('Connection error. Please try again.');
+    }
+    hideEmailDialog();
+});
+
+emailSendButton.addEventListener('click', () => {
+    const emailAddress = emailInput.value.trim();
+    console.log('Sending email to:', emailAddress);
+    
+    if (!emailAddress) {
+        showError('Please enter an email address');
+        return;
+    }
+    
+    if (!emailAddress.includes('@')) {
+        showError('Please enter a valid email address');
+        return;
+    }
+    
+    if (textWs && textWs.readyState === WebSocket.OPEN) {
+        const message = {
+            type: 'followup_response',
+            response: emailAddress,
+            cancelled: false,
+            context: currentCommandContext
+        };
+        console.log('Sending email message:', message);
+        textWs.send(JSON.stringify(message));
+        // Hide dialog immediately after sending
+        hideEmailDialog();
+    } else {
+        console.error('Text WebSocket not connected for email');
+        showError('Connection error. Please try again.');
+    }
+});

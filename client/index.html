@@ -316,6 +316,150 @@
         border-radius: 8px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       }
+
+      /* Email Dialog Styles */
+      .dialog-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 1000;
+      }
+
+      .dialog-overlay.visible {
+        display: block;
+      }
+
+      .email-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        width: 90%;
+        max-width: 500px;
+        z-index: 1001;
+        display: none;
+      }
+
+      .email-dialog.visible {
+        display: block;
+      }
+
+      .email-dialog-header {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+      }
+
+      .email-dialog-header h3 {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 1.2rem;
+      }
+
+      .email-dialog-content {
+        padding: 1rem;
+      }
+
+      .email-preview {
+        margin-bottom: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+      }
+
+      .email-preview-field {
+        margin-bottom: 0.5rem;
+      }
+
+      .email-preview-field:last-child {
+        margin-bottom: 0;
+      }
+
+      .email-preview-field label {
+        display: block;
+        font-size: 0.9rem;
+        color: #868e96;
+        margin-bottom: 0.25rem;
+      }
+
+      .email-preview-text {
+        padding: 0.5rem;
+        background: white;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+        min-height: 1.5rem;
+      }
+
+      .email-input-field {
+        margin-top: 1rem;
+      }
+
+      .email-input-field label {
+        display: block;
+        font-size: 0.9rem;
+        color: #868e96;
+        margin-bottom: 0.25rem;
+      }
+
+      .email-input-field input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      .email-input-field input.error {
+        border-color: #ff6b6b;
+        animation: shake 0.5s;
+      }
+
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+      }
+
+      .email-dialog-footer {
+        padding: 1rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+
+      .dialog-button {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      .dialog-button.cancel {
+        background: #e9ecef;
+        color: #495057;
+      }
+
+      .dialog-button.cancel:hover {
+        background: #dee2e6;
+      }
+
+      .dialog-button.send {
+        background: #4dabf7;
+        color: white;
+      }
+
+      .dialog-button.send:hover {
+        background: #339af0;
+      }
     </style>
   </head>
   <body>
@@ -353,6 +497,34 @@
           <div class="orb" id="orb"></div>
         </div>
         <div class="status-text" id="status">Click the orb to start recording</div>
+      </div>
+    </div>
+
+    <!-- Email Dialog -->
+    <div class="dialog-overlay" id="dialog-overlay"></div>
+    <div class="email-dialog" id="email-dialog">
+      <div class="email-dialog-header">
+        <h3>Send Email</h3>
+      </div>
+      <div class="email-dialog-content">
+        <div class="email-preview">
+          <div class="email-preview-field">
+            <label>Subject:</label>
+            <div id="email-preview-subject" class="email-preview-text"></div>
+          </div>
+          <div class="email-preview-field">
+            <label>Body:</label>
+            <div id="email-preview-body" class="email-preview-text"></div>
+          </div>
+        </div>
+        <div class="email-input-field">
+          <label for="email-input">Recipient Email:</label>
+          <input type="email" id="email-input" placeholder="Enter email address" />
+        </div>
+      </div>
+      <div class="email-dialog-footer">
+        <button id="email-cancel-button" class="dialog-button cancel">Cancel</button>
+        <button id="email-send-button" class="dialog-button send">Send</button>
       </div>
     </div>
 

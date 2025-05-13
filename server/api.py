@@ -22,6 +22,8 @@ from llm.llm_handler import process_with_llm
 from tools.command_executor import execute_command
 from tools.followup_handler import handle_followup
 from context.conversation_manager import ConversationManager
+from tools.email_handler import EmailHandler
+from voice.tts_speaker import speak_text
 
 app = FastAPI()
 
@@ -38,9 +40,11 @@ app.add_middleware(
 recognizer = sr.Recognizer()
 client = speech.SpeechClient()
 conversation_manager = ConversationManager()
+email_handler = EmailHandler()
 
 # Store active WebSocket connections
 active_connections: Dict[str, WebSocket] = {}
+active_text_connections: Dict[str, WebSocket] = {}  # New dict for text connections
 
 # Models
 class ChatSession(BaseModel):
@@ -182,6 +186,166 @@ async def websocket_endpoint(websocket: WebSocket):
         if client_id in active_connections:
             del active_connections[client_id]
             print(f"Cleaned up connection for client {client_id}")
+
+@app.websocket("/ws/text")
+async def text_websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for handling text-based follow-up responses."""
+    await websocket.accept()
+    print("New text WebSocket connection request")
+    client_id = str(uuid.uuid4())
+    print(f"Text WebSocket connection accepted for client {client_id}")
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            print(f"Received text data: {data}")
+            
+            try:
+                message = json.loads(data)
+                if message.get("type") != "followup_response":
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Invalid message type. Expected followup_response."
+                    })
+                    continue
+                
+                # Get context from the client message
+                current_context = message.get("context")
+                print(f"Received context from client: {current_context}")
+                
+                if not current_context:
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "No context provided. Please try the command again."
+                    })
+                    continue
+                
+                # Validate command type
+                if current_context.get("command_type") not in ["email_send", "email_draft"]:
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Invalid command type for text follow-up."
+                    })
+                    continue
+                
+                # Process email address
+                email_address = message.get("response", "").strip()
+                if message.get("cancelled", False):
+                    print("Email cancelled by user")
+                    await websocket.send_json({
+                        "type": "jarvis",
+                        "response": "Email cancelled.",
+                        "command_data": current_context
+                    })
+                    continue
+                
+                print(f"Processing email address: {email_address}")
+                
+                # Basic email validation
+                if not email_address or "@" not in email_address:
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": "Invalid email address format. Please provide a valid email address."
+                    })
+                    continue
+                
+                # Update the context with the email address
+                current_context["parameters"]["to"] = email_address
+                
+                try:
+                    # Execute the email command using the global email_handler
+                    if current_context["command_type"] == "email_send":
+                        result = email_handler.send_email(
+                            to=email_address,
+                            subject=current_context["parameters"]["subject"],
+                            body=current_context["parameters"]["body"]
+                        )
+                        if result:
+                            print(f"Email sent successfully to {email_address}")
+                            response_text = f"I've sent your email to {email_address} with the subject '{current_context['parameters']['subject']}'. The email has been delivered successfully."
+                            # Speak the response
+                            speak_text(response_text)
+                            await websocket.send_json({
+                                "type": "jarvis",
+                                "response": response_text,
+                                "command_data": {
+                                    **current_context,
+                                    "response": response_text
+                                }
+                            })
+                        else:
+                            print(f"Failed to send email to {email_address}")
+                            error_text = "I apologize, but I couldn't send the email. Please check your Gmail authentication and try again."
+                            # Speak the error
+                            speak_text(error_text)
+                            await websocket.send_json({
+                                "type": "error",
+                                "error": error_text,
+                                "command_data": {
+                                    **current_context,
+                                    "response": error_text
+                                }
+                            })
+                    else:  # email_draft
+                        result = email_handler.draft_email(
+                            to=email_address,
+                            subject=current_context["parameters"]["subject"],
+                            body=current_context["parameters"]["body"]
+                        )
+                        if result:
+                            print(f"Email draft created successfully for {email_address}")
+                            response_text = f"I've created a draft email to {email_address} with the subject '{current_context['parameters']['subject']}'. You can find it in your Gmail drafts folder."
+                            # Speak the response
+                            speak_text(response_text)
+                            await websocket.send_json({
+                                "type": "jarvis",
+                                "response": response_text,
+                                "command_data": {
+                                    **current_context,
+                                    "response": response_text
+                                }
+                            })
+                        else:
+                            print(f"Failed to create email draft for {email_address}")
+                            error_text = "I apologize, but I couldn't create the email draft. Please check your Gmail authentication and try again."
+                            # Speak the error
+                            speak_text(error_text)
+                            await websocket.send_json({
+                                "type": "error",
+                                "error": error_text,
+                                "command_data": {
+                                    **current_context,
+                                    "response": error_text
+                                }
+                            })
+                
+                except Exception as e:
+                    print(f"Error executing email command: {str(e)}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "error": f"Error processing email: {str(e)}"
+                    })
+                
+            except json.JSONDecodeError:
+                await websocket.send_json({
+                    "type": "error",
+                    "error": "Invalid JSON message format."
+                })
+            except Exception as e:
+                print(f"Error processing message: {str(e)}")
+                await websocket.send_json({
+                    "type": "error",
+                    "error": f"Error processing message: {str(e)}"
+                })
+                
+    except WebSocketDisconnect:
+        print(f"Text WebSocket disconnected for client {client_id}")
+    except Exception as e:
+        print(f"WebSocket error: {str(e)}")
+        try:
+            await websocket.close()
+        except:
+            pass
 
 @app.post("/api/process-command", response_model=CommandResponse)
 async def process_command(request: CommandRequest):
